@@ -44,11 +44,56 @@
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    const vehicleMarker = L.marker([-5.7945, -35.2084]).addTo(map).bindPopup('Entrega em andamento');
+    const routeLayer = L.layerGroup().addTo(map);
+    let markerMoto = null;
+    let markerColeta = null;
+    let stopMarkers = [];
+    let fittedOnce = false;
+
+    const motoIcon = L.divIcon({
+      className: 'custom-moto-icon',
+      html: `<div style="background:#ea580c;color:#fff;padding:6px;border-radius:50%;box-shadow:0 4px 10px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;width:36px;height:36px;border:2px solid #fff;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+      </div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    });
+
+    const coletaIcon = L.divIcon({
+      className: 'custom-store-icon',
+      html: `<div style="background:#b91c1c;color:#fff;border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid #fff;font-weight:700;font-size:12px;">C</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
+    });
+
+    function makeStopIcon(num) {
+      return L.divIcon({
+        className: 'custom-dest-icon',
+        html: `<div style="background:#15803d;color:#fff;border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid #fff;font-weight:700;font-size:11px;">#${num}</div>`,
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+    }
+
+    async function fetchOsrmSegment(points) {
+      if (points.length < 2) return [];
+      const coordsStr = points.map(p => `${p.lon},${p.lat}`).join(';');
+      try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`);
+        if (res.ok) {
+          const data = await res.json();
+          const coords = data?.routes?.[0]?.geometry?.coordinates;
+          if (Array.isArray(coords) && coords.length) {
+            return coords.map(([lon, lat]) => [lat, lon]);
+          }
+        }
+      } catch {}
+      return points.map(p => [p.lat, p.lon]);
+    }
 
     async function checkToken() {
       try {
-        const res = await fetch(`/api/tracking/verify/${encodeURIComponent(token)}`);
+        const res = await fetch(`/api/tracking/verify/${encodeURIComponent(token)}`, { cache: 'no-store' });
         if (!res.ok) {
           document.getElementById('map').style.display = 'none';
           document.getElementById('expired-msg').style.display = 'block';
@@ -58,18 +103,81 @@
           return;
         }
         const payload = await res.json();
-        const osId = payload.order?.id || payload.data?.os_id || 'OS Ativa';
+        const order = payload.order || {};
+        const osId = order.id || payload.data?.os_id || 'OS Ativa';
         document.getElementById('os-id').textContent = osId;
-        document.getElementById('os-badge').textContent = (payload.order?.status || 'EM ROTA').replace('_', ' ').toUpperCase();
-        document.getElementById('driver-name').textContent = payload.order?.driver_name || 'Na fila / designando';
+        document.getElementById('os-badge').textContent = (order.status || 'EM ROTA').replace('_', ' ').toUpperCase();
+        document.getElementById('driver-name').textContent = payload.driver?.name || order.driver_name || 'Na fila / designando';
         document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
 
-        if (payload.vehicle && payload.vehicle.lat && payload.vehicle.lon) {
-          vehicleMarker.setLatLng([payload.vehicle.lat, payload.vehicle.lon]);
-          map.setView([payload.vehicle.lat, payload.vehicle.lon], 14);
-        } else if (payload.order && payload.order.origin_lat && payload.order.origin_lon) {
-          vehicleMarker.setLatLng([payload.order.origin_lat, payload.order.origin_lon]);
-          map.setView([payload.order.origin_lat, payload.order.origin_lon], 14);
+        // Posição real do motoboy: prioridade para hermes_drivers.lat/lon ao vivo
+        const drvLat = payload.driver?.lat ?? payload.vehicle?.lat ?? null;
+        const drvLon = payload.driver?.lon ?? payload.vehicle?.lon ?? null;
+
+        const boundsPts = [];
+        if (drvLat != null && drvLon != null) {
+          const ll = [Number(drvLat), Number(drvLon)];
+          boundsPts.push(ll);
+          if (!markerMoto) {
+            markerMoto = L.marker(ll, { icon: motoIcon }).addTo(map).bindPopup(`<b>${payload.driver?.name || order.driver_name || 'Motoboy'}</b><br>Posição em tempo real`);
+          } else {
+            markerMoto.setLatLng(ll);
+          }
+        }
+
+        const coletaPt = (order.origin_lat != null && order.origin_lon != null)
+          ? { lat: Number(order.origin_lat), lon: Number(order.origin_lon) }
+          : null;
+        if (coletaPt) {
+          boundsPts.push([coletaPt.lat, coletaPt.lon]);
+          if (!markerColeta) {
+            markerColeta = L.marker([coletaPt.lat, coletaPt.lon], { icon: coletaIcon })
+              .addTo(map).bindPopup(`<b>Ponto de Coleta</b><br>${order.origin_address || ''}`);
+          }
+        }
+
+        const rawStops = (Array.isArray(payload.stops) && payload.stops.length)
+          ? payload.stops
+          : (Array.isArray(order.destinations) ? order.destinations : []).filter(d => d && d.lat != null && d.lon != null);
+
+        stopMarkers.forEach(m => m.remove());
+        stopMarkers = [];
+        const stopPts = [];
+        rawStops.forEach((s, idx) => {
+          const pt = { lat: Number(s.lat), lon: Number(s.lon), address: s.address || '' };
+          stopPts.push(pt);
+          boundsPts.push([pt.lat, pt.lon]);
+          const mk = L.marker([pt.lat, pt.lon], { icon: makeStopIcon(idx + 1) })
+            .addTo(map).bindPopup(`<b>Parada #${idx + 1}</b><br>${pt.address}`);
+          stopMarkers.push(mk);
+        });
+
+        routeLayer.clearLayers();
+        const motoPt = (drvLat != null && drvLon != null) ? { lat: Number(drvLat), lon: Number(drvLon) } : null;
+
+        // Trecho 1: Motoboy -> Coleta
+        if (motoPt && coletaPt) {
+          const seg1 = await fetchOsrmSegment([motoPt, coletaPt]);
+          if (seg1.length) {
+            L.polyline(seg1, { color: '#0284c7', weight: 4, opacity: 0.9, dashArray: '8, 8' }).addTo(routeLayer);
+          }
+        }
+
+        // Trecho 2+: Coleta (ou Motoboy) -> #1 -> #2...
+        const deliveryChain = [
+          ...(coletaPt ? [coletaPt] : (motoPt ? [motoPt] : [])),
+          ...stopPts
+        ];
+        if (deliveryChain.length >= 2) {
+          const seg2 = await fetchOsrmSegment(deliveryChain);
+          if (seg2.length) {
+            L.polyline(seg2, { color: '#10b981', weight: 4, opacity: 0.9, dashArray: '8, 8' }).addTo(routeLayer);
+          }
+        }
+
+        if (!fittedOnce && boundsPts.length) {
+          fittedOnce = true;
+          map.fitBounds(L.latLngBounds(boundsPts).pad(0.2));
         }
       } catch (e) {
         document.getElementById('os-badge').textContent = 'ERRO DE CONEXÃO';
@@ -77,7 +185,7 @@
     }
 
     checkToken();
-    setInterval(checkToken, 15000);
+    setInterval(checkToken, 4000);
   </script>
 </body>
 </html>

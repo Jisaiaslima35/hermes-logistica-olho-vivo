@@ -172,18 +172,119 @@ async function initSchema() {
     `);
 
     const extraOrderCols = [
+      ['organization_id', "VARCHAR(64) NOT NULL DEFAULT 'default'"],
       ['payment_method', "VARCHAR(32) NOT NULL DEFAULT 'pix'"],
       ['cargo_weight_kg', 'DECIMAL(10,2) NULL'],
       ['cargo_volume', 'VARCHAR(64) NULL'],
       ['cargo_type', 'VARCHAR(128) NULL'],
       ['duration_min', 'INT DEFAULT 15'],
-      ['route_source', "VARCHAR(32) DEFAULT 'osrm'"]
+      ['route_source', "VARCHAR(32) DEFAULT 'osrm'"],
+      ['requires_return', 'TINYINT(1) NOT NULL DEFAULT 0'],
+      ['extra_stops_count', 'INT NOT NULL DEFAULT 0'],
+      ['pricing_snapshot_json', 'JSON NULL'],
+      ['valor_total_cliente', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+      ['valor_taxa_cooperativa', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+      ['valor_liquido_motoboy', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00']
     ];
     for (const [col, def] of extraOrderCols) {
       const [cols] = await conn.query(`SHOW COLUMNS FROM hermes_orders LIKE ?`, [col]);
       if (!cols.length) {
         await conn.query(`ALTER TABLE hermes_orders ADD COLUMN ${col} ${def}`);
       }
+    }
+
+    const extraTariffCols = [
+      ['organization_id', "VARCHAR(64) NOT NULL DEFAULT 'default'"],
+      ['km_franquia', 'DECIMAL(8,2) NOT NULL DEFAULT 3.00'],
+      ['adicional_retorno', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+      ['adicional_parada_extra', 'DECIMAL(10,2) NOT NULL DEFAULT 5.00'],
+      ['adicional_noturno_ou_clima', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
+      ['adicional_noturno_ativo', 'TINYINT(1) NOT NULL DEFAULT 0']
+    ];
+    for (const [col, def] of extraTariffCols) {
+      const [cols] = await conn.query(`SHOW COLUMNS FROM hermes_tariffs LIKE ?`, [col]);
+      if (!cols.length) {
+        await conn.query(`ALTER TABLE hermes_tariffs ADD COLUMN ${col} ${def}`);
+      }
+    }
+
+    const extraDriverCols = [
+      ['organization_id', "VARCHAR(64) NOT NULL DEFAULT 'default'"],
+      ['pix_key', 'VARCHAR(128) NULL']
+    ];
+    for (const [col, def] of extraDriverCols) {
+      const [cols] = await conn.query(`SHOW COLUMNS FROM hermes_drivers LIKE ?`, [col]);
+      if (!cols.length) {
+        await conn.query(`ALTER TABLE hermes_drivers ADD COLUMN ${col} ${def}`);
+      }
+    }
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS hermes_split_rules (
+        id VARCHAR(64) PRIMARY KEY,
+        organization_id VARCHAR(64) NOT NULL DEFAULT 'default',
+        driver_id VARCHAR(64) NULL,
+        split_type ENUM('percentual', 'taxa_fixa_por_corrida') NOT NULL DEFAULT 'percentual',
+        coop_value DECIMAL(10,2) NOT NULL DEFAULT 15.00,
+        extras_to_driver_100 TINYINT(1) NOT NULL DEFAULT 1,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_org_driver_split (organization_id, driver_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS payout_batches (
+        id VARCHAR(64) PRIMARY KEY,
+        organization_id VARCHAR(64) NOT NULL DEFAULT 'default',
+        total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        drivers_count INT NOT NULL DEFAULT 0,
+        status VARCHAR(32) NOT NULL DEFAULT 'aberto',
+        notes TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        paid_at DATETIME NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS driver_wallet_transactions (
+        id VARCHAR(64) PRIMARY KEY,
+        organization_id VARCHAR(64) NOT NULL DEFAULT 'default',
+        driver_id VARCHAR(64) NOT NULL,
+        order_id VARCHAR(64) NULL,
+        payout_batch_id VARCHAR(64) NULL,
+        tipo ENUM('credito_corrida', 'bonus', 'ajuste_manual', 'desconto_mensalidade', 'repasse_saque') NOT NULL,
+        status ENUM('bloqueado', 'disponivel', 'pago') NOT NULL DEFAULT 'disponivel',
+        valor DECIMAL(10,2) NOT NULL,
+        valor_bruto_os DECIMAL(10,2) NULL,
+        taxa_cooperativa_os DECIMAL(10,2) NULL,
+        descricao VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_wallet_driver (driver_id, status),
+        INDEX idx_wallet_batch (payout_batch_id),
+        UNIQUE KEY uq_wallet_order_credit (order_id, tipo)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS hj_driver_push_subscriptions (
+        id VARCHAR(64) PRIMARY KEY,
+        driver_id VARCHAR(64) NOT NULL,
+        organization_id VARCHAR(64) NOT NULL DEFAULT 'default',
+        endpoint TEXT NOT NULL,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_push_driver (driver_id),
+        UNIQUE KEY uq_push_endpoint (endpoint(255))
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    const [splitRows] = await conn.query("SELECT COUNT(*) AS cnt FROM hermes_split_rules WHERE driver_id IS NULL");
+    if (splitRows[0].cnt === 0) {
+      await conn.query(`
+        INSERT INTO hermes_split_rules (id, organization_id, driver_id, split_type, coop_value, extras_to_driver_100)
+        VALUES ('split_org_default', 'default', NULL, 'percentual', 15.00, 1)
+      `);
     }
 
     const [rows] = await conn.query('SELECT COUNT(*) AS cnt FROM hermes_tariffs');

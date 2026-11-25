@@ -30,6 +30,10 @@ node_modules/
 **/node_modules/
 uploads/
 backups/
+.backups/
+*.db
+*.sqlite
+*.sqlite3
 android/build/
 android/.gradle/
 **/android/build/

@@ -53,9 +53,12 @@ async function requireAuth(request, reply, allowedTypes = null) {
     reply.code(401).send({ error: 'Não autorizado. Faça login.' });
     return null;
   }
-  if (allowedTypes && !allowedTypes.includes(decoded.type)) {
-    reply.code(403).send({ error: 'Acesso negado para este perfil.' });
-    return null;
+  if (allowedTypes) {
+    const isSuper = decoded.type === 'super_admin' && !allowedTypes.every(t => t === 'customer');
+    if (!isSuper && !allowedTypes.includes(decoded.type)) {
+      reply.code(403).send({ error: 'Acesso negado para este perfil.' });
+      return null;
+    }
   }
   return decoded;
 }

@@ -258,10 +258,17 @@ async function recalculateRoute() {
   });
   if (points.length < 2) points.push(destCoords);
 
+  const requiresReturn = Boolean(document.getElementById('o-requires-return')?.checked);
+  const extraStops = Math.max(0, destInputs.length - 1);
+
   try {
-    const res = await capi('/api/geo/route', { method: 'POST', body: { points } });
+    const res = await capi('/api/geo/route', {
+      method: 'POST',
+      body: { points, extra_stops_count: extraStops, requires_return: requiresReturn }
+    });
     calculatedKm = res.distance_km || 5;
     calculatedMin = res.duration_min || 12;
+    window._lastEstimates = res.estimates || {};
     document.getElementById('route-km').textContent = `${calculatedKm.toFixed(1)} km`;
     document.getElementById('route-min').textContent = `${calculatedMin} min`;
 
@@ -275,36 +282,61 @@ async function recalculateRoute() {
   } catch {}
 }
 
-// Autocomplete com debounce
-function attachAutocomplete(inputEl, dropdownEl, onSelect) {
+function renderPrecisionBadge(el, item) {
+  if (!el || !item) return;
+  el.innerHTML = item.precision === 'exact'
+    ? '<span style="color:#10B981;font-weight:700;">● Número exato localizado</span>'
+    : '<span style="color:#F59E0B;">● Aproximado na quadra (arraste o pino se precisar)</span>';
+}
+
+// Autocomplete com debounce + número estruturado
+function attachAutocomplete(inputEl, dropdownEl, numberEl, precisionEl, onSelect) {
   let timer = null;
-  inputEl.addEventListener('input', () => {
-    clearTimeout(timer);
+  const runSearch = async (autoPickFirst = false) => {
     const q = inputEl.value.trim();
+    const num = numberEl ? numberEl.value.trim() : '';
     if (q.length < 3) {
       hideEl(dropdownEl);
       return;
     }
-    timer = setTimeout(async () => {
-      try {
-        const list = await capi(`/api/geo/search?q=${encodeURIComponent(q)}`);
-        if (!list.length) { hideEl(dropdownEl); return; }
-        dropdownEl.innerHTML = '';
-        list.forEach(item => {
-          const div = document.createElement('div');
-          div.className = 'ac-item';
-          div.textContent = item.label;
-          div.onclick = () => {
-            inputEl.value = item.label;
-            hideEl(dropdownEl);
-            onSelect(item);
-          };
-          dropdownEl.appendChild(div);
-        });
-        showEl(dropdownEl);
-      } catch { hideEl(dropdownEl); }
-    }, 350);
+    try {
+      const qs = new URLSearchParams({ q });
+      if (num) qs.set('number', num);
+      const list = await capi(`/api/geo/search?${qs.toString()}`);
+      if (!list.length) { hideEl(dropdownEl); return; }
+      if (autoPickFirst) {
+        renderPrecisionBadge(precisionEl, list[0]);
+        onSelect(list[0]);
+        return;
+      }
+      dropdownEl.innerHTML = '';
+      list.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'ac-item';
+        const tag = item.precision === 'exact' ? ' [Exato]' : '';
+        div.textContent = `${item.label}${tag}`;
+        div.onclick = () => {
+          inputEl.value = item.label;
+          hideEl(dropdownEl);
+          renderPrecisionBadge(precisionEl, item);
+          onSelect(item);
+        };
+        dropdownEl.appendChild(div);
+      });
+      showEl(dropdownEl);
+    } catch { hideEl(dropdownEl); }
+  };
+
+  inputEl.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => runSearch(false), 350);
   });
+  if (numberEl) {
+    numberEl.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => runSearch(true), 350);
+    });
+  }
   document.addEventListener('click', (e) => {
     if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target)) hideEl(dropdownEl);
   });
@@ -313,6 +345,8 @@ function attachAutocomplete(inputEl, dropdownEl, onSelect) {
 attachAutocomplete(
   document.getElementById('o-origin'),
   document.getElementById('ac-origin'),
+  document.getElementById('o-origin-number'),
+  document.getElementById('origin-precision'),
   (item) => {
     originCoords = { lat: item.lat, lon: item.lon };
     if (originMarker) originMarker.setLatLng([item.lat, item.lon]);
@@ -320,10 +354,16 @@ attachAutocomplete(
   }
 );
 
+document.getElementById('btn-focus-map')?.addEventListener('click', () => {
+  document.getElementById('client-mini-map')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
 function wireDestRow(row) {
   const inp = row.querySelector('.dest-input');
   const dd = row.querySelector('.ac-dropdown');
-  attachAutocomplete(inp, dd, (item) => {
+  const numInp = row.querySelector('.dest-number');
+  const precEl = row.querySelector('.dest-precision');
+  attachAutocomplete(inp, dd, numInp, precEl, (item) => {
     inp.dataset.lat = item.lat;
     inp.dataset.lon = item.lon;
     destCoords = { lat: item.lat, lon: item.lon };
@@ -336,10 +376,16 @@ document.querySelectorAll('.stop-row').forEach(wireDestRow);
 document.getElementById('btn-add-stop').addEventListener('click', () => {
   const wrap = document.getElementById('stops-container');
   const row = document.createElement('div');
-  row.className = 'ac-wrap stop-row';
+  row.className = 'stop-row';
   row.innerHTML = `
-    <input type="text" class="form-control dest-input" placeholder="Parada adicional #${wrap.children.length + 1}" autocomplete="off" />
-    <div class="ac-dropdown is-hidden" hidden></div>
+    <div style="display:grid;grid-template-columns:1fr 95px;gap:8px;">
+      <div class="ac-wrap">
+        <input type="text" class="form-control dest-input" placeholder="Parada adicional #${wrap.children.length + 1}" autocomplete="off" />
+        <div class="ac-dropdown is-hidden" hidden></div>
+      </div>
+      <input type="text" class="form-control dest-number" placeholder="Nº" autocomplete="off" />
+    </div>
+    <div class="dest-precision" style="font-size:0.75rem;margin-top:4px;color:var(--muted);"></div>
   `;
   wrap.appendChild(row);
   wireDestRow(row);
@@ -387,14 +433,24 @@ function toggleCargoFields() {
 
 function renderFleetCards() {
   const container = document.getElementById('fleet-cards');
+  const requiresReturn = Boolean(document.getElementById('o-requires-return')?.checked);
+  const extraStops = Math.max(0, document.querySelectorAll('.dest-input').length - 1);
   container.innerHTML = tariffsCache.map(t => {
-    const price = Number(t.base_fee) + Number(t.per_km_fee) * calculatedKm;
+    const serverEst = window._lastEstimates && window._lastEstimates[t.fleet_type];
+    let price = serverEst;
+    if (price === undefined) {
+      const kmExc = Math.max(0, calculatedKm - Number(t.km_franquia ?? 3));
+      const extras = (requiresReturn ? Number(t.adicional_retorno || 0) : 0) +
+        (extraStops * Number(t.adicional_parada_extra || 0)) +
+        (t.adicional_noturno_ativo ? Number(t.adicional_noturno_ou_clima || 0) : 0);
+      price = Number(t.base_fee) + Number(t.per_km_fee) * kmExc + extras;
+    }
     return `
       <div class="fleet-card ${selectedFleet === t.fleet_type ? 'selected' : ''}" onclick="selectFleet('${t.fleet_type}')">
         <div style="margin-bottom:4px;">${FLEET_SVGS[t.fleet_type] || FLEET_SVGS.bau}</div>
         <div style="font-weight:600;font-size:0.88rem;color:var(--text);">${t.label}</div>
-        <small style="color:var(--muted);font-size:0.75rem;">Base R$ ${Number(t.base_fee).toFixed(2)} + R$ ${Number(t.per_km_fee).toFixed(2)}/km</small>
-        <div class="fleet-price">R$ ${price.toFixed(2)}</div>
+        <small style="color:var(--muted);font-size:0.75rem;">Base R$ ${Number(t.base_fee).toFixed(2)} (até ${Number(t.km_franquia ?? 3)}km) + R$ ${Number(t.per_km_fee).toFixed(2)}/km</small>
+        <div class="fleet-price">R$ ${Number(price).toFixed(2)}</div>
       </div>
     `;
   }).join('');
@@ -409,9 +465,17 @@ window.selectFleet = (type) => {
 
 function updateEstimatedPrice() {
   const tariff = tariffsCache.find(t => t.fleet_type === selectedFleet);
-  const price = tariff ? (Number(tariff.base_fee) + Number(tariff.per_km_fee) * calculatedKm) : 0;
-  document.getElementById('o-estimated-total').textContent = `R$ ${price.toFixed(2)}`;
+  let price = window._lastEstimates && window._lastEstimates[selectedFleet];
+  if (price === undefined && tariff) {
+    const kmExc = Math.max(0, calculatedKm - Number(tariff.km_franquia ?? 3));
+    price = Number(tariff.base_fee) + Number(tariff.per_km_fee) * kmExc;
+  }
+  document.getElementById('o-estimated-total').textContent = `R$ ${Number(price || 0).toFixed(2)}`;
 }
+
+document.getElementById('o-requires-return')?.addEventListener('change', () => {
+  recalculateRoute();
+});
 
 document.getElementById('o-schedule-mode').addEventListener('change', (e) => {
   const wrap = document.getElementById('schedule-date-wrap');
@@ -457,6 +521,7 @@ document.getElementById('client-order-form').addEventListener('submit', async (e
         invoice_number: document.getElementById('o-nf').value,
         notes: document.getElementById('o-notes').value,
         payment_method: document.getElementById('o-payment').value,
+        requires_return: Boolean(document.getElementById('o-requires-return')?.checked),
         cargo_weight_kg: document.getElementById('o-cargo-weight').value || null,
         cargo_volume: document.getElementById('o-cargo-volume').value || null,
         cargo_type: document.getElementById('o-cargo-type').value || null,

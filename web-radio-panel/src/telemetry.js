@@ -198,6 +198,11 @@ async function telemetryRoutes(fastify) {
     const latest = points[points.length - 1];
     if (vehicle_id) {
       await upsertVehiclePosition(latest, vehicle_id, driver_id);
+    } else if (driver_id) {
+      await pool.query(
+        `UPDATE hermes_drivers SET lat = ?, lon = ?, online = 1 WHERE id = ?`,
+        [latest.lat, latest.lon, driver_id]
+      );
     }
     await raiseOperationalAlerts({ point: latest, vehicleId: vehicle_id, driverId: driver_id, orderId: order_id });
 

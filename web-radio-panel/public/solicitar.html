@@ -143,10 +143,14 @@
                 <label for="o-origin" style="margin-bottom:0;">Endereço de Origem (Coleta)</label>
                 <button type="button" id="btn-gps-origin" class="btn btn-ghost btn-sm">Usar minha localização atual</button>
               </div>
-              <div class="ac-wrap">
-                <input type="text" id="o-origin" class="form-control" placeholder="Digite rua, bairro ou ponto de referência..." required autocomplete="off" />
-                <div id="ac-origin" class="ac-dropdown is-hidden" hidden></div>
+              <div style="display:grid;grid-template-columns:1fr 95px;gap:8px;">
+                <div class="ac-wrap">
+                  <input type="text" id="o-origin" class="form-control" placeholder="Digite rua, bairro ou CEP..." required autocomplete="off" />
+                  <div id="ac-origin" class="ac-dropdown is-hidden" hidden></div>
+                </div>
+                <input type="text" id="o-origin-number" class="form-control" placeholder="Nº" autocomplete="off" />
               </div>
+              <div id="origin-precision" style="font-size:0.75rem;margin-top:4px;color:var(--muted);"></div>
             </div>
 
             <div>
@@ -155,9 +159,15 @@
                 <button type="button" id="btn-add-stop" class="btn btn-ghost btn-sm">+ Adicionar Parada</button>
               </div>
               <div id="stops-container" style="display:flex;flex-direction:column;gap:8px;">
-                <div class="ac-wrap stop-row">
-                  <input type="text" class="form-control dest-input" placeholder="Digite o endereço de destino..." required autocomplete="off" />
-                  <div class="ac-dropdown is-hidden" hidden></div>
+                <div class="stop-row">
+                  <div style="display:grid;grid-template-columns:1fr 95px;gap:8px;">
+                    <div class="ac-wrap">
+                      <input type="text" class="form-control dest-input" placeholder="Digite o endereço de destino ou CEP..." required autocomplete="off" />
+                      <div class="ac-dropdown is-hidden" hidden></div>
+                    </div>
+                    <input type="text" class="form-control dest-number" placeholder="Nº" autocomplete="off" />
+                  </div>
+                  <div class="dest-precision" style="font-size:0.75rem;margin-top:4px;color:var(--muted);"></div>
                 </div>
               </div>
             </div>
@@ -168,7 +178,7 @@
               <div class="route-summary-bar" style="margin-top:8px;">
                 <span>Distância calculada: <strong id="route-km">-- km</strong></span>
                 <span>Tempo estimado: <strong id="route-min">-- min</strong></span>
-                <span style="font-size:0.75rem;">Arraste os pinos no mapa para ajuste fino</span>
+                <button type="button" id="btn-focus-map" class="btn btn-ghost btn-sm">Ajustar pino no mapa</button>
               </div>
             </div>
 
@@ -223,6 +233,11 @@
                 </select>
               </div>
             </div>
+
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;color:var(--text);cursor:pointer;">
+              <input type="checkbox" id="o-requires-return" />
+              <span>Exige retorno ao ponto de coleta (adicional de retorno)</span>
+            </label>
 
             <div id="schedule-date-wrap" class="form-group is-hidden" hidden style="margin-bottom:0;">
               <label for="o-scheduled-at">Data e Hora Programada (horário futuro)</label>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hermes Motorista — PWA</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#2563EB" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="stylesheet" href="/styles.css?v=5" />
+  <style>
+    .driver-shell { max-width: 600px; margin: 0 auto; min-height: 100vh; padding-bottom: 76px; display: flex; flex-direction: column; }
+    .driver-topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 900; }
+    .driver-content { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(4, 1fr); height: 64px; z-index: 950; }
+    .bottom-btn { background: transparent; border: none; color: var(--muted); font-size: 0.72rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
+    .bottom-btn.active { color: #60A5FA; background: rgba(37, 99, 235, 0.1); }
+    .olho-vivo-banner { background: #DC2626; color: #FFFFFF; padding: 10px 14px; font-weight: 700; font-size: 0.82rem; text-align: center; border-radius: 8px; animation: pulseRed 1.5s infinite; }
+    @keyframes pulseRed { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+    .ptt-giant { width: 100%; height: 110px; border-radius: 14px; border: none; background: var(--primary); color: #fff; font-size: 1.05rem; font-weight: 700; cursor: pointer; user-select: none; touch-action: none; }
+    .ptt-giant.active { background: #DC2626; }
+    .qr-video { width: 100%; max-height: 260px; border-radius: 10px; background: #000; object-fit: cover; }
+
+    /* ─── BOTÃO ONLINE / OFFLINE ─── */
+    .presence-btn { width: 100%; border: none; border-radius: 14px; padding: 13px 16px; color: #fff; font-weight: 800; font-size: 0.98rem; display: flex; flex-direction: column; gap: 3px; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,0.22); line-height: 1.25; }
+    .presence-btn small { font-weight: 600; opacity: 0.85; font-size: 0.72rem; }
+    .presence-btn.is-online { background: linear-gradient(135deg, #059669, #10B981); }
+    .presence-btn.is-offline { background: linear-gradient(135deg, #B91C1C, #EF4444); }
+    .presence-banner { background: #7F1D1D; color: #FECACA; padding: 9px 14px; font-weight: 700; font-size: 0.8rem; text-align: center; border-radius: 8px; }
+
+    /* ─── AÇÕES DA CORRIDA ATIVA ─── */
+    .run-actions { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }
+    .btn-run-finish { width: 100%; min-height: 56px; border: none; border-radius: 12px; background: linear-gradient(135deg, #059669, #10B981); color: #fff; font-size: 1rem; font-weight: 800; cursor: pointer; box-shadow: 0 4px 14px rgba(16,185,129,0.32); }
+    .btn-run-finish:active { transform: scale(0.99); }
+    .btn-run-photo { width: 100%; min-height: 48px; border-radius: 12px; background: var(--surface-2, #1F2937); border: 2px solid #F59E0B; color: #FCD34D; font-size: 0.92rem; font-weight: 700; cursor: pointer; }
+    .run-actions-minor { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <!-- LOGIN MOTORISTA -->
+  <section id="drv-login-screen" class="auth-viewport">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6h3l2 5.5"/><path d="M5.5 17.5L10 11h5l-2 6.5"/></svg>
+        </div>
+        <div>
+          <h1>Hermes Motorista</h1>
+          <p>App Operacional PWA (Android & iPhone)</p>
+        </div>
+      </div>
+
+      <div id="drv-login-err" class="alert-error is-hidden" hidden></div>
+
+      <form id="drv-login-form">
+        <div class="form-group">
+          <label for="drv-id-input">WhatsApp ou Placa do Veículo</label>
+          <input type="text" id="drv-id-input" class="form-control" placeholder="Ex: 5584999993333 ou PIX1E23" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Entrar na Operação</button>
+      </form>
+
+      <div class="auth-divider"><span>ou</span></div>
+      <button id="drv-btn-demo" type="button" class="btn btn-ghost btn-block">Entrar em Modo Demonstração</button>
+    </div>
+  </section>
+
+  <!-- ÁREA LOGADA PWA -->
+  <div id="drv-app" class="driver-shell is-hidden" hidden>
+    <header class="driver-topbar">
+      <div>
+        <strong id="drv-name" style="font-size:0.95rem;">Motorista</strong>
+        <div id="drv-meta" style="font-size:0.74rem;color:var(--muted);">Placa · GPS: Aguardando</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button id="btn-enable-push" type="button" class="btn btn-ghost btn-sm">Ativar Push</button>
+        <button id="drv-logout" type="button" class="btn btn-danger btn-sm">Sair</button>
+      </div>
+    </header>
+
+    <div id="olho-vivo-banner" class="olho-vivo-banner is-hidden" hidden style="margin:10px 14px 0;">
+      CÂMERA OLHO VIVO ATIVA — TRANSMITINDO PARA A CENTRAL
+    </div>
+
+    <!-- BOTÃO GRANDE ONLINE / OFFLINE -->
+    <div id="drv-presence-wrap" style="margin:10px 14px 0;">
+      <button id="btn-presence" type="button" class="presence-btn is-online">
+        <span id="btn-presence-title">ESTOU ONLINE (Recebendo Corridas)</span>
+        <small id="btn-presence-sub">Toque para pausar o rastreio e sair da fila</small>
+      </button>
+    </div>
+
+    <div id="drv-offline-banner" class="presence-banner is-hidden" hidden style="margin:8px 14px 0;">
+      VOCÊ ESTÁ OFFLINE — rastreio pausado e fila de corridas suspensa
+    </div>
+
+    <main class="driver-content">
+      <!-- ABA 1: CORRIDAS & FILA ABERTA -->
+      <section id="dtab-corridas">
+        <div class="card" style="margin-bottom:12px;">
+          <div class="card-header">
+            <span class="card-title">Corrida em Andamento</span>
+            <button id="btn-open-qr" type="button" class="btn btn-ghost btn-sm">Ler QR / Código</button>
+          </div>
+          <div id="drv-active-orders"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Fila Aberta da Cooperativa</span>
+            <button id="btn-refresh-queue" type="button" class="btn btn-ghost btn-sm">Atualizar</button>
+          </div>
+          <div id="drv-queue-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </section>
+
+      <!-- ABA 2: RÁDIO PTT & OLHO VIVO -->
+      <section id="dtab-radio" class="is-hidden" hidden>
+        <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+          <div class="card-header">
+            <span class="card-title" id="drv-radio-title">Rádio PTT (radio-cooperativa-geral)</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="drv-radio-channel">Rede / Empresa</label>
+            <select id="drv-radio-channel" class="form-control">
+              <option value="radio-cooperativa-geral">Rede Geral da Cooperativa</option>
+            </select>
+            <small style="color:var(--muted);display:block;margin-top:4px;">Trocar de rede reconecta o rádio na sala escolhida.</small>
+          </div>
+
+          <div id="drv-ptt-status" class="ptt-status">
+            <span class="ptt-dot"></span>
+            <span id="drv-ptt-text">Conectando ao LiveKit...</span>
+          </div>
+          <button id="drv-ptt-btn" type="button" class="ptt-giant">SEGURAR PARA FALAR</button>
+
+          <div style="border-top:1px solid var(--border);padding-top:10px;">
+            <div style="font-size:0.8rem;font-weight:700;margin-bottom:6px;">Chat da Rede</div>
+            <div id="drv-chat-messages" style="height:105px;overflow-y:auto;font-size:0.78rem;background:rgba(0,0,0,0.22);border-radius:8px;padding:8px;margin-bottom:8px;display:flex;flex-direction:column;gap:4px;"></div>
+            <div style="display:flex;gap:6px;">
+              <input id="drv-chat-input" type="text" class="form-control" placeholder="Enviar mensagem..." />
+              <button id="drv-chat-send" type="button" class="btn btn-primary btn-sm">Enviar</button>
+            </div>
+          </div>
+
+          <div class="card-header" style="margin-top:8px;">
+            <span class="card-title">Olho Vivo (Câmera sob Demanda)</span>
+          </div>
+          <small style="color:var(--muted);">Ativada somente quando solicitada pela Central (480p, sem áudio ambiente).</small>
+          <video id="drv-local-video" autoplay muted playsinline class="qr-video is-hidden" hidden></video>
+        </div>
+      </section>
+
+      <!-- ABA 3: VISTORIA DVIR -->
+      <section id="dtab-dvir" class="is-hidden" hidden>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Vistoria Pré-Viagem (DVIR)</span>
+            <span id="dvir-offline-badge" class="badge badge-pendente is-hidden" hidden>Fila Offline</span>
+          </div>
+          <form id="drv-dvir-form" style="display:flex;flex-direction:column;gap:10px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Tipo de Inspeção</label>
+              <select id="dvir-kind" class="form-control">
+                <option value="entrada">Entrada (Início de Turno)</option>
+                <option value="saida">Saída (Fim de Turno)</option>
+              </select>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;"><input type="checkbox" id="dvir-pneus" checked /> Pneus e Rodas OK</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;"><input type="checkbox" id="dvir-freios" checked /> Freios OK</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;"><input type="checkbox" id="dvir-luzes" checked /> Faróis e Lanternas OK</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;"><input type="checkbox" id="dvir-docs" checked /> Documentação / Baú OK</label>
+            <div class="form-group" style="margin-bottom:0;">
+              <label>Foto da Vistoria (Câmera)</label>
+              <input type="file" id="dvir-photo" accept="image/*" capture="environment" class="form-control" />
+            </div>
+            <textarea id="dvir-notes" class="form-control" rows="2" placeholder="Observações ou avarias encontradas..."></textarea>
+            <button type="submit" class="btn btn-primary btn-block">Enviar Vistoria DVIR</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ABA 4: MINHA CARTEIRA -->
+      <section id="dtab-carteira" class="is-hidden" hidden>
+        <div class="grid-2" style="margin-bottom:12px;">
+          <div class="card" style="border-color:#10B981;">
+            <small style="color:var(--muted);">Saldo Disponível</small>
+            <div id="w-disp" style="font-size:1.4rem;font-weight:700;color:#10B981;">R$ 0,00</div>
+          </div>
+          <div class="card" style="border-color:#F59E0B;">
+            <small style="color:var(--muted);">Em Processamento</small>
+            <div id="w-bloq" style="font-size:1.4rem;font-weight:700;color:#F59E0B;">R$ 0,00</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Extrato Cronológico</span>
+            <button id="btn-refresh-wallet" type="button" class="btn btn-ghost btn-sm">Atualizar</button>
+          </div>
+          <div id="w-tx-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- NAVEGAÇÃO INFERIOR -->
+    <nav class="bottom-nav">
+      <button class="bottom-btn active" data-dtab="corridas">Corridas</button>
+      <button class="bottom-btn" data-dtab="radio">Rádio PTT</button>
+      <button class="bottom-btn" data-dtab="dvir">Vistoria</button>
+      <button class="bottom-btn" data-dtab="carteira">Carteira</button>
+    </nav>
+  </div>
+
+  <!-- MODAL SCANNER QR / CÓDIGO DE BARRAS -->
+  <div id="qr-modal" class="modal-backdrop is-hidden" hidden>
+    <div class="modal-box">
+      <h3>Scanner QR Code / Código de Barras</h3>
+      <video id="qr-video" class="qr-video" autoplay playsinline muted></video>
+      <canvas id="qr-canvas" class="is-hidden" hidden></canvas>
+      <div id="qr-result" style="margin-top:10px;font-size:0.85rem;color:#10B981;">Aponte a câmera para o código...</div>
+      <div style="margin-top:12px;display:flex;justify-content:flex-end;">
+        <button id="btn-close-qr" type="button" class="btn btn-ghost btn-sm">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT DE FOTO DA CORRIDA (único, fora do card que re-renderiza a cada 12s).
+       A câmera só abre quando o motorista toca em "Anexar Foto (Opcional)". -->
+  <input type="file" id="run-photo-input" accept="image/*" capture="environment" class="is-hidden" hidden onchange="completeWithPhoto(event)" />
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+  <script src="/motorista.js?v=3"></script>
+</body>
+</html>
