@@ -1,0 +1,103 @@
+# /opt/hermes-fleetbase/infra/docker/compose.f1.yml
+# Spike do GATE F1-VAL-001 (18/11/2026) — isolado, sem porta pública.
+#
+# Uso:
+#   docker compose -p fleetbase --env-file ../env/.env.shared -f compose.f1.yml up -d
+#   docker compose -p fleetbase --env-file ../env/.env.shared -f compose.f1.yml exec api php artisan migrate --force
+#
+# Regra: só o core mínimo (redis + api). LiveKit/Coturn NÃO entram aqui (trava do Isaac).
+# A porta é 127.0.0.1 — não publica nada no exterior. Nginx publica depois, se e quando autorizado.
+
+name: fleetbase
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  security_opt: [ "no-new-privileges:true" ]
+
+networks:
+  fleetbase_net:
+    name: fleetbase_net
+    driver: bridge
+  supabase_default:
+    name: supabase_default
+    external: true          # rede do Postgres do Supabase (ADR-010)
+
+volumes:
+  fleetbase_storage:
+    name: fleetbase_storage
+
+services:
+
+  # ─────────────────────────── CORE (AGPL) ───────────────────────────
+  fleetbase-redis:
+    <<: *common
+    image: redis:7-alpine
+    container_name: fleetbase-redis
+    command:
+      - redis-server
+      - --maxmemory
+      - "96mb"
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "no"
+    networks: [ fleetbase_net ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:   { memory: "${MEM_LIMIT_REDIS:-160m}", cpus: "0.30" }
+        reservations: { memory: "${MEM_LIMIT_REDIS:-160m}" }
+
+  fleetbase-api:
+    <<: *common
+    image: fleetbase/fleetbase-api:latest
+    container_name: fleetbase-api
+    env_file: [ "../env/fleetbase.env" ]
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: ${DATABASE_URL}
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL}
+      QUEUE_CONNECTION: redis
+      CACHE_DRIVER: redis
+      CACHE_URL: tcp://fleetbase-redis:6379
+      REDIS_URL: tcp://fleetbase-redis:6379
+      CACHE_PATH: /fleetbase/api/storage/framework/cache
+      BROADCAST_DRIVER: log
+      LOG_CHANNEL: stderr
+      SESSION_DOMAIN: ${SESSION_DOMAIN}
+      OSRM_HOST: ${OSRM_HOST}
+      ROUTER_URL: ${ROUTER_URL}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      REGISTRY_HOST: ${REGISTRY_HOST}
+      REGISTRY_PREINSTALLED_EXTENSIONS: ${REGISTRY_PREINSTALLED_EXTENSIONS}
+    volumes:
+      - "fleetbase_storage:/fleetbase/api/storage/app"
+    ports:
+      - "127.0.0.1:8000:8000"      # ← só local; nada público
+    networks: [ fleetbase_net, supabase_default ]
+    depends_on:
+      fleetbase-redis: { condition: service_healthy }
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:   { memory: "${MEM_LIMIT_API:-1024m}", cpus: "1.50" }
+        reservations: { memory: "${MEM_LIMIT_API:-1024m}" }

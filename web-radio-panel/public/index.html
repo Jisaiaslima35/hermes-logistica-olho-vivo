@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Logística & Olho Vivo — Central Administrativa</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css?v=4" />
+</head>
+<body>
+  <!-- TELA DE LOGIN EXCLUSIVA -->
+  <section id="login-screen" class="auth-viewport">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+        </div>
+        <div>
+          <h1>Hermes Logística & Olho Vivo</h1>
+          <p>Central Operacional — Automação JS</p>
+        </div>
+      </div>
+
+      <div id="login-error" class="alert-error is-hidden" hidden></div>
+
+      <form id="admin-login-form">
+        <div class="form-group">
+          <label for="login-identifier">Usuário ou E-mail</label>
+          <input type="text" id="login-identifier" class="form-control" placeholder="admin@automacaojs.us" required autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="login-password">Senha</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Entrar na Central</button>
+      </form>
+
+      <!-- ACESSO RÁPIDO DE DEMO — só aparece quando DEMO_MODE=true (ver /health) -->
+      <div id="demo-access" hidden>
+        <div class="auth-divider"><span>ou acesso rápido</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button id="btn-demo-live" type="button" class="btn btn-success btn-block">Entrar em Modo Demonstração (Dados Vivos)</button>
+          <button id="btn-demo-admin" type="button" class="btn btn-ghost btn-block">Entrar como Admin Piloto (Banco Real)</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <a href="/solicitar" class="btn btn-ghost btn-block">Ir para Portal do Cliente</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SISTEMA LOGADO (OCULTO ANTES DO LOGIN) -->
+  <div id="app-shell" class="app-layout is-hidden" hidden>
+    <div id="drawer-overlay" class="drawer-overlay"></div>
+
+    <!-- SIDEBAR FIXA (DESKTOP) / DRAWER (MOBILE) -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+        </div>
+        <div>
+          <div class="sidebar-title">Hermes Frota</div>
+          <div class="sidebar-subtitle">Central & Cooperativa</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="operacao" data-title="Operação ao Vivo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+          <span>Operação ao Vivo</span>
+        </button>
+        <button class="nav-item" data-tab="kanban" data-title="Corridas & Romaneios">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="11" rx="1"/></svg>
+          <span>Corridas & Romaneios</span>
+        </button>
+        <button class="nav-item" data-tab="frota" data-title="Frota & Motoristas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0 1 13 0"/></svg>
+          <span>Frota & Motoristas</span>
+        </button>
+        <button class="nav-item" data-tab="financeiro" data-title="Acerto & Comissões">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>Acerto & Comissões</span>
+        </button>
+        <button class="nav-item" data-tab="dvir" data-title="Checklists (DVIR)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span>Checklists (DVIR)</span>
+        </button>
+        <button class="nav-item" data-tab="clientes" data-title="Clientes & Tarifas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>
+          <span>Clientes & Tarifas</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/solicitar" target="_blank" class="btn btn-ghost btn-sm btn-block">Portal do Cliente</a>
+        <button id="btn-logout" type="button" class="btn btn-danger btn-sm btn-block">Sair</button>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL -->
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="mobile-menu-btn" class="mobile-menu-btn" type="button" aria-label="Abrir menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <h2 id="topbar-title" class="page-title">Operação ao Vivo</h2>
+        </div>
+
+        <div class="topbar-right">
+          <div class="clocks-group">
+            <div class="clock-pill">BRT (UTC-3)<strong id="clock-brt">--:--:--</strong></div>
+            <div class="clock-pill">CST (UTC-6)<strong id="clock-cst">--:--:--</strong></div>
+          </div>
+          <div class="user-pill">
+            <span class="user-dot"></span>
+            <span id="admin-user-name">Admin</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="content-area">
+        <!-- ABA 1: OPERAÇÃO AO VIVO -->
+        <section id="tab-operacao" class="tab-pane active">
+          <div class="live-grid">
+            <aside class="card" style="max-height:calc(100vh - 130px);overflow-y:auto;">
+              <div class="card-header">
+                <span class="card-title">Frota Online (<span id="veh-count">0</span>)</span>
+              </div>
+              <div id="vehicles-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </aside>
+
+            <div>
+              <div id="map"></div>
+            </div>
+
+            <aside class="card" style="display:flex;flex-direction:column;gap:14px;">
+              <div>
+                <div class="card-header">
+                  <span class="card-title">Rádio PTT (radio-frota-geral)</span>
+                </div>
+                <div id="ptt-indicator" class="ptt-status">
+                  <span class="ptt-dot"></span>
+                  <span id="ptt-text">CONECTANDO RÁDIO...</span>
+                </div>
+                <small style="color:var(--muted);display:block;">Pressione e segure a Barra de Espaço ou o botão abaixo.</small>
+                <button id="ptt-button" type="button" class="ptt-btn">Segurar para Falar</button>
+              </div>
+
+              <div>
+                <div class="card-header">
+                  <span class="card-title">Olho Vivo (480p sob demanda)</span>
+                </div>
+                <div style="font-size:0.82rem;color:var(--muted);">Veículo: <strong id="vision-veh-name" style="color:var(--text);">Nenhum selecionado</strong></div>
+                <div class="video-box">
+                  <div id="video-placeholder">
+                    <div>Câmera Desligada</div>
+                    <small>Stream sob demanda (480p / 15fps)</small>
+                  </div>
+                  <video id="remote-video" autoplay playsinline class="is-hidden" hidden></video>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button id="btn-camera-toggle" type="button" class="btn btn-primary btn-sm" style="flex:1;" disabled>Ligar Câmera</button>
+                  <button id="btn-camera-switch" type="button" class="btn btn-ghost btn-sm" style="flex:1;" disabled>Front / Back</button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- ABA 2: CORRIDAS & ROMANEIOS -->
+        <section id="tab-kanban" class="tab-pane">
+          <div class="toolbar">
+            <h3 style="font-size:1rem;font-weight:600;">Quadro de Corridas & Despacho</h3>
+            <div style="display:flex;gap:8px;">
+              <button id="btn-refresh-kanban" type="button" class="btn btn-ghost btn-sm">Atualizar</button>
+              <button id="btn-new-order-admin" type="button" class="btn btn-primary btn-sm">+ Nova Corrida</button>
+            </div>
+          </div>
+          <div id="kanban-board" class="kanban-board"></div>
+        </section>
+
+        <!-- ABA 3: FROTA, MOTORISTAS & PONTOS -->
+        <section id="tab-frota" class="tab-pane">
+          <div class="grid-3">
+            <div class="card">
+              <div class="card-header"><span class="card-title">Motoristas / Mototaxistas</span></div>
+              <form id="form-driver" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                <input type="text" name="name" class="form-control" placeholder="Nome completo" required />
+                <input type="text" name="whatsapp" class="form-control" placeholder="WhatsApp (ex: 5584999990000)" required />
+                <div style="display:flex;gap:8px;">
+                  <input type="text" name="plate" class="form-control" placeholder="Placa" required />
+                  <input type="number" name="commission_pct" class="form-control" value="80" placeholder="% Comissão" required />
+                </div>
+                <select name="fleet_type" class="form-control">
+                  <option value="moto">Moto / Mototáxi</option>
+                  <option value="utilitario">Utilitário / Fiorino</option>
+                  <option value="bau">Caminhão Baú</option>
+                  <option value="carreta">Carreta Pesada</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">Cadastrar Motorista</button>
+              </form>
+              <div id="drivers-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><span class="card-title">Veículos da Frota</span></div>
+              <form id="form-vehicle" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                <input type="text" name="plate" class="form-control" placeholder="Placa (ex: QGA1A22)" required />
+                <input type="text" name="model" class="form-control" placeholder="Modelo (ex: Honda CG 160)" required />
+                <select name="fleet_type" class="form-control">
+                  <option value="moto">Moto / Mototáxi</option>
+                  <option value="utilitario">Utilitário / Fiorino</option>
+                  <option value="bau">Caminhão Baú</option>
+                  <option value="carreta">Carreta Pesada</option>
+                </select>
+                <select name="driver_id" id="vehicle-driver-select" class="form-control">
+                  <option value="">Sem motorista vinculado</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">Cadastrar Veículo</button>
+              </form>
+              <div id="fleet-vehicles-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><span class="card-title">Pontos de Apoio & Cercas</span></div>
+              <form id="form-place" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                <input type="text" name="name" class="form-control" placeholder="Nome do ponto / cerca" required />
+                <input type="text" name="address" class="form-control" placeholder="Endereço" />
+                <div style="display:flex;gap:8px;">
+                  <input type="number" step="any" name="lat" class="form-control" value="-5.7945" placeholder="Latitude" required />
+                  <input type="number" step="any" name="lon" class="form-control" value="-35.2084" placeholder="Longitude" required />
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <select name="place_type" class="form-control">
+                    <option value="base">Ponto de Apoio</option>
+                    <option value="cerca">Cerca Eletrônica</option>
+                    <option value="cliente">Base de Cliente</option>
+                  </select>
+                  <input type="number" name="radius_m" class="form-control" value="300" placeholder="Raio (m)" />
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Cadastrar Ponto</button>
+              </form>
+              <div id="places-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ABA 4: ACERTO FINANCEIRO -->
+        <section id="tab-financeiro" class="tab-pane">
+          <div class="toolbar">
+            <h3 style="font-size:1rem;font-weight:600;">Fechamento de Repasses & Comissões</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="date" id="fin-start" class="form-control" style="width:auto;" />
+              <input type="date" id="fin-end" class="form-control" style="width:auto;" />
+              <button id="btn-load-settlements" type="button" class="btn btn-primary btn-sm">Calcular Período</button>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><span class="card-title">Pendentes de Fechamento</span></div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Motorista</th><th>Entregas</th><th>Bruto</th><th>Taxa Coop.</th><th>Líquido</th><th>Ação</th></tr>
+                  </thead>
+                  <tbody id="settlement-preview-body"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Histórico de Acertos Fechados</span></div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Motorista</th><th>Período</th><th>Entregas</th><th>Bruto</th><th>Líquido</th></tr>
+                  </thead>
+                  <tbody id="settlement-history-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ABA 5: DVIR & ALERTAS -->
+        <section id="tab-dvir" class="tab-pane">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-header">
+              <span class="card-title">Vistoria Fotográfica (DVIR) — Galeria Comparativa Entrada vs. Saída</span>
+            </div>
+            <div class="dvir-filters" id="dvir-filters">
+              <button type="button" class="btn btn-ghost btn-sm is-active" data-dvir-filter="all">Todas</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dvir-filter="entrada">Entrada / Início Turno</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dvir-filter="saida">Saída / Fim Turno</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dvir-filter="dano">Com Avaria</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dvir-filter="duplicada">Foto Duplicada Suspeita</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-dvir-filter="reprovado">Reprovados</button>
+            </div>
+            <div id="dvir-gallery" class="dvir-grid"></div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><span class="card-title">Checklists Pré-Viagem (DVIR)</span></div>
+              <div id="dvir-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Alertas Operacionais (Desvio 300m/10min & Parada 15min)</span></div>
+              <div id="alerts-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ABA 6: CLIENTES & TABELA DE PREÇOS -->
+        <section id="tab-clientes" class="tab-pane">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><span class="card-title">Clientes & Empresas Cadastradas</span></div>
+              <form id="form-client" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                <input type="text" name="name" class="form-control" placeholder="Nome / Empresa" required />
+                <div style="display:flex;gap:8px;">
+                  <input type="text" name="whatsapp" class="form-control" placeholder="WhatsApp" required />
+                  <input type="text" name="cpf_cnpj" class="form-control" placeholder="CPF / CNPJ" />
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <input type="text" name="username" class="form-control" placeholder="Usuário / E-mail" required />
+                  <input type="password" name="password" class="form-control" placeholder="Senha" required />
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Cadastrar Cliente</button>
+              </form>
+              <div id="clients-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><span class="card-title">Tabela de Preços por Tipo de Frota</span></div>
+              <div id="tariffs-list" style="display:flex;flex-direction:column;gap:12px;"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL GENÉRICO -->
+  <div id="modal-backdrop" class="modal-backdrop is-hidden" hidden>
+    <div class="modal-box" id="modal-box">
+      <h3 id="modal-title">Ação</h3>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+  <script src="/app.js?v=4"></script>
+</body>
+</html>

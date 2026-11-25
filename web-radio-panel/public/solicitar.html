@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal do Cliente — Hermes Logística</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/styles.css?v=4" />
+</head>
+<body>
+  <!-- TELA DE AUTENTICAÇÃO EXCLUSIVA -->
+  <section id="client-auth-screen" class="auth-viewport">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="auth-brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </div>
+        <div>
+          <h1>Portal do Cliente — Hermes</h1>
+          <p>Solicite entregas, fretes e acompanhe ao vivo</p>
+        </div>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active" type="button">Entrar</button>
+        <button id="auth-tab-register" class="auth-tab" type="button">Criar Conta</button>
+      </div>
+
+      <div id="client-auth-error" class="alert-error is-hidden" hidden></div>
+
+      <form id="client-login-form">
+        <div class="form-group">
+          <label for="c-login-id">Usuário ou E-mail</label>
+          <input type="text" id="c-login-id" class="form-control" placeholder="teste" required autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="c-login-pass">Senha</label>
+          <input type="password" id="c-login-pass" class="form-control" placeholder="••••••" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Entrar no Portal</button>
+      </form>
+
+      <form id="client-register-form" class="is-hidden" hidden>
+        <div class="form-group">
+          <label for="r-name">Nome Completo ou Empresa</label>
+          <input type="text" id="r-name" class="form-control" placeholder="Ex: Distribuidora Silva" required />
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          <div class="form-group">
+            <label for="r-whatsapp">WhatsApp</label>
+            <input type="text" id="r-whatsapp" class="form-control phone-mask" placeholder="(84) 99999-9999" required />
+          </div>
+          <div class="form-group">
+            <label for="r-doc">CPF / CNPJ</label>
+            <input type="text" id="r-doc" class="form-control" placeholder="000.000.000-00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="r-username">E-mail ou Usuário</label>
+          <input type="text" id="r-username" class="form-control" placeholder="contato@empresa.com" required />
+        </div>
+        <div class="form-group">
+          <label for="r-password">Senha</label>
+          <input type="password" id="r-password" class="form-control" placeholder="Crie uma senha" required />
+        </div>
+        <button type="submit" class="btn btn-success btn-block">Cadastrar e Entrar</button>
+      </form>
+
+      <div class="auth-divider"><span>ou</span></div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button id="btn-demo-client" type="button" class="btn btn-ghost btn-block">Acesso Rápido Demo (teste / teste)</button>
+        <button id="btn-google-oauth" type="button" class="btn btn-ghost btn-block">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z"/></svg>
+          Continuar com Google
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ÁREA PÓS-LOGIN -->
+  <div id="client-app" class="app-layout is-hidden" hidden>
+    <div id="c-drawer-overlay" class="drawer-overlay"></div>
+
+    <aside id="c-sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </div>
+        <div>
+          <div class="sidebar-title">Hermes Portal</div>
+          <div class="sidebar-subtitle">Área do Cliente</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-ctab="solicitar" data-title="Nova Solicitação">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          <span>Nova Solicitação</span>
+        </button>
+        <button class="nav-item" data-ctab="pedidos" data-title="Meus Pedidos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Meus Pedidos</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="btn-client-logout" type="button" class="btn btn-danger btn-sm btn-block">Sair</button>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="c-mobile-menu-btn" class="mobile-menu-btn" type="button" aria-label="Abrir menu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <h2 id="c-topbar-title" class="page-title">Nova Solicitação</h2>
+        </div>
+        <div class="topbar-right">
+          <div class="user-pill">
+            <span class="user-dot"></span>
+            <span id="client-greeting">Cliente</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="content-area" style="max-width:1060px;">
+        <!-- ABA 1: NOVA SOLICITAÇÃO -->
+        <section id="ctab-solicitar" class="card">
+          <div class="card-header">
+            <span class="card-title">1. Escolha o Tipo de Frota</span>
+          </div>
+          <div id="fleet-cards" class="fleet-grid"></div>
+
+          <div class="card-header" style="margin-top:8px;">
+            <span class="card-title">2. Endereços & Rota Automática</span>
+          </div>
+
+          <form id="client-order-form" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+                <label for="o-origin" style="margin-bottom:0;">Endereço de Origem (Coleta)</label>
+                <button type="button" id="btn-gps-origin" class="btn btn-ghost btn-sm">Usar minha localização atual</button>
+              </div>
+              <div class="ac-wrap">
+                <input type="text" id="o-origin" class="form-control" placeholder="Digite rua, bairro ou ponto de referência..." required autocomplete="off" />
+                <div id="ac-origin" class="ac-dropdown is-hidden" hidden></div>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="font-size:0.78rem;font-weight:500;color:var(--muted);">Endereços de Destino / Paradas</label>
+                <button type="button" id="btn-add-stop" class="btn btn-ghost btn-sm">+ Adicionar Parada</button>
+              </div>
+              <div id="stops-container" style="display:flex;flex-direction:column;gap:8px;">
+                <div class="ac-wrap stop-row">
+                  <input type="text" class="form-control dest-input" placeholder="Digite o endereço de destino..." required autocomplete="off" />
+                  <div class="ac-dropdown is-hidden" hidden></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- MINI-MAPA INTERATIVO -->
+            <div>
+              <div id="client-mini-map"></div>
+              <div class="route-summary-bar" style="margin-top:8px;">
+                <span>Distância calculada: <strong id="route-km">-- km</strong></span>
+                <span>Tempo estimado: <strong id="route-min">-- min</strong></span>
+                <span style="font-size:0.75rem;">Arraste os pinos no mapa para ajuste fino</span>
+              </div>
+            </div>
+
+            <!-- CAMPOS DE CARGA PESADA (OBRIGATÓRIOS PARA BAÚ E CARRETA) -->
+            <div id="cargo-section" class="is-hidden" hidden style="background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:14px;">
+              <div style="font-size:0.84rem;font-weight:600;margin-bottom:10px;color:#93C5FD;">Dados da Carga (Obrigatório para Baú e Carreta)</div>
+              <div class="grid-3">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label for="o-cargo-weight">Peso Estimado (kg)</label>
+                  <input type="number" id="o-cargo-weight" class="form-control" placeholder="Ex: 2500" min="1" step="0.5" />
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label for="o-cargo-volume">Volume / Cubagem</label>
+                  <input type="text" id="o-cargo-volume" class="form-control" placeholder="Ex: 12 m³ / 8 pallets" />
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label for="o-cargo-type">Tipo de Carga</label>
+                  <input type="text" id="o-cargo-type" class="form-control" placeholder="Ex: Alimentos, Bebidas, Peças" />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="o-rec-name">Destinatário (Nome)</label>
+                <input type="text" id="o-rec-name" class="form-control" placeholder="Nome de quem recebe" />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="o-rec-whats">WhatsApp do Destinatário</label>
+                <input type="text" id="o-rec-whats" class="form-control phone-mask" placeholder="(84) 99999-9999" />
+              </div>
+            </div>
+
+            <div class="grid-3">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="o-payment">Forma de Pagamento</label>
+                <select id="o-payment" class="form-control">
+                  <option value="pix">Pix</option>
+                  <option value="dinheiro">Dinheiro na Entrega</option>
+                  <option value="faturado">Faturado / Mensal</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="o-nf">Número da Nota Fiscal (NF)</label>
+                <input type="text" id="o-nf" class="form-control" placeholder="Opcional (ex: NF-1042)" />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="o-schedule-mode">Atendimento</label>
+                <select id="o-schedule-mode" class="form-control">
+                  <option value="agora">Pedir Agora (Imediato)</option>
+                  <option value="agendar">Agendar Data e Hora</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="schedule-date-wrap" class="form-group is-hidden" hidden style="margin-bottom:0;">
+              <label for="o-scheduled-at">Data e Hora Programada (horário futuro)</label>
+              <input type="datetime-local" id="o-scheduled-at" class="form-control" />
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label for="o-notes">Observações</label>
+              <textarea id="o-notes" class="form-control" rows="2" placeholder="Instruções de carga, portaria ou horário..."></textarea>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;background:var(--surface-2);padding:14px 16px;border-radius:10px;border:1px solid var(--border-light);">
+              <div>
+                <div style="font-size:0.78rem;color:var(--muted);">Valor Estimado pela Rota</div>
+                <div id="o-estimated-total" style="font-size:1.35rem;font-weight:700;color:var(--success);">R$ 0,00</div>
+              </div>
+              <button type="submit" class="btn btn-primary" style="padding:11px 24px;">Confirmar Solicitação</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ABA 2: MEUS PEDIDOS -->
+        <section id="ctab-pedidos" class="card is-hidden" hidden>
+          <div class="toolbar">
+            <span class="card-title">Histórico Persistente de Pedidos</span>
+            <button id="btn-refresh-orders" type="button" class="btn btn-ghost btn-sm">Atualizar</button>
+          </div>
+
+          <div class="filter-pills">
+            <button class="filter-pill active" data-status="todos">Todos</button>
+            <button class="filter-pill" data-status="agendado">Agendados</button>
+            <button class="filter-pill" data-status="ativos">Em Rota / Pendentes</button>
+            <button class="filter-pill" data-status="concluido">Concluídos</button>
+            <button class="filter-pill" data-status="problema">Com Problemas</button>
+            <button class="filter-pill" data-status="cancelado">Cancelados</button>
+          </div>
+
+          <div id="client-orders-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/solicitar.js?v=4"></script>
+</body>
+</html>

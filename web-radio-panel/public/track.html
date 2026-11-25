@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acompanhamento de Entrega — Hermes</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; height: 100vh; }
+    header { background: #1e293b; padding: 14px 20px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+    h1 { font-size: 1.05rem; color: #38bdf8; }
+    .status-badge { background: #065f46; color: #34d399; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: bold; text-transform: uppercase; }
+    #map { flex: 1; width: 100%; }
+    .footer { background: #1e293b; padding: 12px 20px; border-top: 1px solid #334155; font-size: 0.85rem; color: #94a3b8; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+    .expired-box { display: none; margin: auto; text-align: center; padding: 30px; background: #1e293b; border-radius: 10px; border: 1px solid #ef4444; max-width: 420px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🚚 Rastreio ao Vivo — Hermes Logística</h1>
+    <span id="os-badge" class="status-badge">CARREGANDO...</span>
+  </header>
+
+  <div id="map"></div>
+
+  <div id="expired-msg" class="expired-box">
+    <h2 style="color: #ef4444; margin-bottom: 10px;">Link Expirado ou Inválido</h2>
+    <p>Esta entrega já foi concluída ou o link de rastreio perdeu a validade de segurança.</p>
+  </div>
+
+  <footer class="footer">
+    <span>OS: <strong id="os-id" style="color: white;">--</strong></span>
+    <span>Motorista: <strong id="driver-name" style="color: white;">Aguardando</strong></span>
+    <span>Atualização: <strong id="last-update" style="color: white;">ao vivo</strong></span>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const token = window.location.pathname.split('/').pop();
+    const map = L.map('map').setView([-5.7945, -35.2084], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const vehicleMarker = L.marker([-5.7945, -35.2084]).addTo(map).bindPopup('Entrega em andamento');
+
+    async function checkToken() {
+      try {
+        const res = await fetch(`/api/tracking/verify/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          document.getElementById('map').style.display = 'none';
+          document.getElementById('expired-msg').style.display = 'block';
+          document.getElementById('os-badge').textContent = 'EXPIRADO';
+          document.getElementById('os-badge').style.background = '#7f1d1d';
+          document.getElementById('os-badge').style.color = '#fca5a5';
+          return;
+        }
+        const payload = await res.json();
+        const osId = payload.order?.id || payload.data?.os_id || 'OS Ativa';
+        document.getElementById('os-id').textContent = osId;
+        document.getElementById('os-badge').textContent = (payload.order?.status || 'EM ROTA').replace('_', ' ').toUpperCase();
+        document.getElementById('driver-name').textContent = payload.order?.driver_name || 'Na fila / designando';
+        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+
+        if (payload.vehicle && payload.vehicle.lat && payload.vehicle.lon) {
+          vehicleMarker.setLatLng([payload.vehicle.lat, payload.vehicle.lon]);
+          map.setView([payload.vehicle.lat, payload.vehicle.lon], 14);
+        } else if (payload.order && payload.order.origin_lat && payload.order.origin_lon) {
+          vehicleMarker.setLatLng([payload.order.origin_lat, payload.order.origin_lon]);
+          map.setView([payload.order.origin_lat, payload.order.origin_lon], 14);
+        }
+      } catch (e) {
+        document.getElementById('os-badge').textContent = 'ERRO DE CONEXÃO';
+      }
+    }
+
+    checkToken();
+    setInterval(checkToken, 15000);
+  </script>
+</body>
+</html>

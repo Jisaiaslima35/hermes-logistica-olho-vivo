@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/datachannel.control.schema.json",
+  "title": "DataChannelControlMessage",
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["stream_video", "switch_camera", "ptt", "tts", "geo_share", "hello", "ack"]
+    },
+    "state": {
+      "type": "boolean"
+    },
+    "facing": {
+      "type": "string",
+      "enum": ["front", "back"]
+    },
+    "text": {
+      "type": "string"
+    },
+    "lang": {
+      "type": "string",
+      "default": "pt-BR"
+    },
+    "app_version": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "ref": {
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "error": {
+      "type": ["string", "null"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "action": { "const": "stream_video" } }
+      },
+      "then": {
+        "required": ["state"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "action": { "const": "switch_camera" } }
+      },
+      "then": {
+        "required": ["facing"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "action": { "const": "ptt" } }
+      },
+      "then": {
+        "required": ["state"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "action": { "const": "tts" } }
+      },
+      "then": {
+        "required": ["text"]
+      }
+    }
+  ]
+}

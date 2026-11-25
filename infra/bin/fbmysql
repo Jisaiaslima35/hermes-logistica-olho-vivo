@@ -1,0 +1,9 @@
+#!/bin/bash
+# Helper local: mysql no fleetbase_db usando credenciais do container web-radio-panel
+docker inspect fleetbase-web-radio-panel --format '{{range .Config.Env}}{{println .}}{{end}}' > /tmp/fb_env.$$
+DBH=$(grep -E '^DB_HOST=' /tmp/fb_env.$$ | cut -d= -f2-)
+DBU=$(grep -E '^DB_USER=' /tmp/fb_env.$$ | cut -d= -f2-)
+DBP=$(grep -E '^DB_PASSWORD=' /tmp/fb_env.$$ | cut -d= -f2-)
+DBN=$(grep -E '^DB_NAME=' /tmp/fb_env.$$ | cut -d= -f2-)
+rm -f /tmp/fb_env.$$
+docker exec fleetbase-mysql mysql -h"$DBH" -u"$DBU" -p"$DBP" -D"$DBN" --batch "$@"

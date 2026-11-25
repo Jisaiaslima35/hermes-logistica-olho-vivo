@@ -1,0 +1,74 @@
+# /opt/hermes-fleetbase/infra/docker/compose.f1.planb.yml
+# Override do PLANO B (MySQL 8) — ADR-002 / ADR-024.
+# Acionado porque o GATE F1-VAL-001 FALHOU no Plano A (Postgres) em 18/11/2026:
+# a imagem fleetbase/fleetbase-api:latest só tem pdo_mysql e o core só define
+# a conexão 'mysql' (ver vendor/fleetbase/core-api/config/database.connections.php).
+#
+# Uso:
+#   cd /opt/hermes-fleetbase/infra/docker
+#   docker compose --profile fallback-mysql -p fleetbase \
+#     --env-file ../env/fleetbase.mysql.env \
+#     -f compose.f1.yml -f compose.f1.planb.yml up -d
+#   docker compose -p fleetbase --env-file ../env/fleetbase.mysql.env \
+#     -f compose.f1.yml -f compose.f1.planb.yml exec -T fleetbase-api php artisan migrate --force
+#
+# ADR-024: o perfil 'fallback-mysql' é MUTUAMENTE EXCLUSIVO com o perfil 'router'
+# (VROOM). Nunca subir os dois juntos.
+# LIMITES: mysql 640 MB (ADR-002) / api 1024 MB / redis 160 MB = 1.824 GB ≤ 4,5 GB.
+# Sem porta pública — 127.0.0.1:8000 apenas.
+
+services:
+
+  fleetbase-mysql:
+    image: mysql:8.0
+    container_name: fleetbase-mysql
+    restart: unless-stopped
+    profiles: [ "fallback-mysql" ]
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+      - --skip-log-bin
+      - --max-connections=60
+      - --innodb-log-buffer-size=8M
+      - --tmp-table-size=16M
+      - --max-heap-table-size=16M
+      - --key-buffer-size=8M
+      - --table-open-cache=64
+      - --thread-cache-size=8
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fleetbase_db}
+      MYSQL_USER: ${MYSQL_USER:-fleetbase}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    networks: [ fleetbase_net ]
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    security_opt: [ "no-new-privileges:true" ]
+    deploy:
+      resources:
+        limits:       { memory: "${MEM_LIMIT_MYSQL:-640m}", cpus: "0.50" }
+        reservations: { memory: "320m" }
+
+  fleetbase-api:
+    # Sobrescreve o bloco Postgres do compose base (precedência do `environment`
+    # sobre o `env_file`).
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-fleetbase}:${MYSQL_PASSWORD}@fleetbase-mysql:3306/${MYSQL_DATABASE:-fleetbase_db}
+      DB_CONNECTION: mysql
+      DB_HOST: fleetbase-mysql
+      DB_PORT: "3306"
+      DB_DATABASE: ${MYSQL_DATABASE:-fleetbase_db}
+      DB_USERNAME: ${MYSQL_USER:-fleetbase}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      STOREFRONT_DB_PORT: "3306"   # a conexão 'storefront' usa DB_DATABASE . '_storefront'
+    depends_on:
+      fleetbase-mysql: { condition: service_healthy }

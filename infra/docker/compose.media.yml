@@ -1,0 +1,95 @@
+# /opt/hermes-fleetbase/infra/docker/compose.media.yml
+# Bloco de MÍDIA (LiveKit PTT/Vision + Coturn TURN) — 19/11/2026.
+#
+# PERFIL "media": só sobe com `--profile media`. Nunca junto com o perfil
+# "router" (VROOM) — ADR-024 (mutuamente exclusivos).
+#
+# Uso:
+#   docker compose -p fleetbase \
+#     --env-file /root/claudinho-secrets/fleetbase.env \
+#     -f compose.f1.yml -f compose.media.yml --profile media up -d livekit coturn
+#
+# REDE: tudo em fleetbase_net (bridge). A sinalização (WS/HTTP 7880) fica em
+# 127.0.0.1 e sai pelo Cloudflare Tunnel (livekit.automacaojs.us). A MÍDIA
+# (RTC/TURN) precisa de porta UDP PÚBLICA — o tunnel NÃO transporta UDP
+# (ADR-007). O DNS do TURN é DNS-only (sem proxy Cloudflare) — Q-003.
+#
+# SEGREDOS: os valores vivem no cofre (/root/claudinho-secrets/fleetbase.env).
+# Os configs com credencial (livekit.yaml, turnserver.conf) são RENDERIZADOS
+# em /root/claudinho-secrets/{livekit,coturn}/ por /tmp/render-media-configs.sh
+# e montados por caminho absoluto — nada de segredo dentro de /opt.
+
+name: fleetbase
+
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  security_opt: [ "no-new-privileges:true" ]
+
+networks:
+  fleetbase_net:
+    name: fleetbase_net
+    driver: bridge
+
+services:
+
+  # ─────────────────────────── LIVEKIT (SFU) ───────────────────────────
+  livekit:
+    <<: *common
+    image: livekit/livekit-server:v1.9.1
+    container_name: fleetbase-livekit
+    profiles: [ "media" ]
+    command: [ "--config", "/etc/livekit.yaml" ]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - "/root/claudinho-secrets/livekit/livekit.yaml:/etc/livekit.yaml:ro"
+    ports:
+      - "127.0.0.1:7880:7880/tcp"      # sinalização (WS) — só pelo tunnel
+      - "0.0.0.0:7881:7881/tcp"        # RTC/TCP
+      - "0.0.0.0:7882-7883:7882-7883/udp"   # mídia UDP (mux do SFU)
+    networks: [ fleetbase_net ]
+    depends_on:
+      fleetbase-redis: { condition: service_healthy }
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:7880 >/dev/null || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:   { memory: "${MEM_LIMIT_LIVEKIT:-512m}", cpus: "1.00" }
+        reservations: { memory: "${MEM_LIMIT_LIVEKIT:-512m}" }
+
+  # ─────────────────────────── COTURN (TURN) ───────────────────────────
+  coturn:
+    <<: *common
+    image: coturn/coturn:4.6.3
+    container_name: fleetbase-coturn
+    profiles: [ "media" ]
+    command: [ "-c", "/etc/coturn/turnserver.conf" ]
+    volumes:
+      - "/root/claudinho-secrets/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro"
+    ports:
+      - "0.0.0.0:3478:3478/udp"        # TURN/STUN
+      - "0.0.0.0:3478:3478/tcp"
+      # faixa de relay vem do cofre (LIVEKIT_RELAY_MIN/MAX_PORT) — 1 porta publicada
+      # = 1 processo docker-proxy, e 101 portas = 101 processos (custo de RAM/fd).
+      # 22/11/2026: faixa reduzida 49160-49260 -> 49160-49199 (40 portas) p/ o piloto.
+      - "0.0.0.0:${LIVEKIT_RELAY_MIN_PORT:-49160}-${LIVEKIT_RELAY_MAX_PORT:-49199}:${LIVEKIT_RELAY_MIN_PORT:-49160}-${LIVEKIT_RELAY_MAX_PORT:-49199}/udp"
+    networks: [ fleetbase_net ]
+    healthcheck:
+      # o processo do coturn chama-se "turnserver" (nao "coturn") — com
+      # `pidof coturn` o container ficava "unhealthy" mesmo com o TURN no ar.
+      test: [ "CMD-SHELL", "pidof turnserver || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:   { memory: "${MEM_LIMIT_COTURN:-192m}", cpus: "0.50" }
+        reservations: { memory: "${MEM_LIMIT_COTURN:-192m}" }

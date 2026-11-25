@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/dvir.registrada.schema.json",
+  "title": "DvirRegistradaPayload",
+  "type": "object",
+  "required": [
+    "dvir_id",
+    "ordem_servico_id",
+    "veiculo_id",
+    "motorista_id",
+    "resultado",
+    "itens",
+    "assinatura_motorista",
+    "bloqueia_saida"
+  ],
+  "properties": {
+    "dvir_id": { "type": "string" },
+    "ordem_servico_id": { "type": "string" },
+    "veiculo_id": { "type": "string" },
+    "motorista_id": { "type": "string" },
+    "resultado": {
+      "type": "string",
+      "enum": ["aprovado", "aprovado_com_observacao", "reprovado"]
+    },
+    "itens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["codigo", "categoria", "aprovado"],
+        "properties": {
+          "codigo": { "type": "string" },
+          "categoria": { "type": "string" },
+          "aprovado": { "type": "boolean" },
+          "gravidade": { "type": "string", "enum": ["baixa", "media", "alta"] },
+          "observacao": { "type": "string" },
+          "foto_url": { "type": "string", "format": "uri" }
+        }
+      }
+    },
+    "assinatura_motorista": { "type": "boolean" },
+    "assinatura_gestor": { "type": "boolean" },
+    "bloqueia_saida": { "type": "boolean" }
+  }
+}

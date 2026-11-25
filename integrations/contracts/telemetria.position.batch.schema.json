@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/telemetria.position.batch.schema.json",
+  "title": "TelemetriaPositionBatchPayload",
+  "type": "object",
+  "required": [
+    "ordem_servico_id",
+    "motorista_id",
+    "batch_size",
+    "pontos"
+  ],
+  "properties": {
+    "ordem_servico_id": { "type": "string" },
+    "turno_id": { "type": "string" },
+    "motorista_id": { "type": "string" },
+    "batch_size": { "type": "integer", "minimum": 1, "maximum": 500 },
+    "pontos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "ts",
+          "lat",
+          "lon",
+          "speed_kph",
+          "heading_deg",
+          "accuracy_m"
+        ],
+        "properties": {
+          "ts": { "type": "string", "format": "date-time", "pattern": "Z$" },
+          "lat": { "type": "number", "minimum": -90.0, "maximum": 90.0 },
+          "lon": { "type": "number", "minimum": -180.0, "maximum": 180.0 },
+          "speed_kph": { "type": "number", "minimum": 0.0 },
+          "heading_deg": { "type": "number", "minimum": 0.0, "maximum": 359.9 },
+          "accuracy_m": { "type": "number", "minimum": 0.0 },
+          "altitude_m": { "type": "number" },
+          "battery_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "battery_charging": { "type": "boolean" },
+          "network_type": { "type": "string" },
+          "source": { "type": "string", "enum": ["gps", "network", "fused"] },
+          "flags": {
+            "type": "object",
+            "properties": {
+              "harsh_brake": { "type": "boolean" },
+              "harsh_accel": { "type": "boolean" },
+              "towing": { "type": "boolean" },
+              "offline_buffered": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

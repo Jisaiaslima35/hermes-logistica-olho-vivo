@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/envelope.schema.json",
+  "title": "FleetbaseEventEnvelope",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "occurred_at",
+    "correlation_id",
+    "idempotency_key",
+    "tenant",
+    "actor",
+    "subject",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID v4 único do evento para deduplicação"
+    },
+    "event_type": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)+$"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$",
+      "description": "Timestamp estritamente em UTC terminando em Z"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Identificador único da cadeia de execução"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Hash sha256 determinístico (event_type + subject.id + occurred_at + payload_hash)"
+    },
+    "tenant": {
+      "type": "object",
+      "required": ["id", "slug"],
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string", "enum": ["motorista", "gestor", "sistema", "app"] },
+        "id": { "type": "string" }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "required": ["type", "id"],
+      "properties": {
+        "type": { "type": "string", "enum": ["veiculo", "ordem_de_servico", "turno", "motorista"] },
+        "id": { "type": "string" }
+      }
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

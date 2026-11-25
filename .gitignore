@@ -1,0 +1,47 @@
+# Segredos, credenciais e chaves (NUNCA versionar)
+.env
+*.env
+.env.*
+infra/env/.env.shared
+infra/env/*.env
+!*.env.example
+!**/env/*.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.jks
+*.keystore
+*secret*
+claudinho-secrets/
+*.bak
+*.bak-*
+
+# Dumps e backups (exceto migrações versionadas)
+*.sql
+*.sql.gz
+*.gz
+*.dump
+!**/hj_*.sql
+!web-radio-panel/migrations/*.sql
+
+# Dependências, builds e gerados
+node_modules/
+**/node_modules/
+uploads/
+backups/
+android/build/
+android/.gradle/
+**/android/build/
+**/android/.gradle/
+ios/build/
+ios/Pods/
+.gradle/
+*.apk
+*.aab
+*.log
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+.DS_Store

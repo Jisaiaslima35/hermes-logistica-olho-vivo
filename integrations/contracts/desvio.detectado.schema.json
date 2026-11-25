@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/desvio.detectado.schema.json",
+  "title": "DesvioDetectadoPayload",
+  "type": "object",
+  "required": [
+    "ordem_servico_id",
+    "veiculo_id",
+    "desvio_id",
+    "deslocamento_m",
+    "duracao_s"
+  ],
+  "properties": {
+    "ordem_servico_id": { "type": "string" },
+    "veiculo_id": { "type": "string" },
+    "motorista_id": { "type": "string" },
+    "desvio_id": { "type": "string" },
+    "ponto_referencia": {
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "descricao": { "type": "string" }
+      }
+    },
+    "deslocamento_m": { "type": "number" },
+    "tolerancia_m": { "type": "number", "default": 300 },
+    "duracao_s": { "type": "number" },
+    "velocidade_media_kph": { "type": "number" },
+    "situacao": { "type": "string" },
+    "notificado": { "type": "boolean" }
+  }
+}

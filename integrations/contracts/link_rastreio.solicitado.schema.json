@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://contracts.fleetbase.automacaojs.us/schemas/link_rastreio.solicitado.schema.json",
+  "title": "LinkRastreioSolicitadoPayload",
+  "type": "object",
+  "required": [
+    "link_id",
+    "ordem_servico_id",
+    "veiculo_id",
+    "destinatario",
+    "token",
+    "url",
+    "expira_em",
+    "ttl_s"
+  ],
+  "properties": {
+    "link_id": { "type": "string" },
+    "ordem_servico_id": { "type": "string" },
+    "veiculo_id": { "type": "string" },
+    "destinatario": {
+      "type": "object",
+      "required": ["telefone"],
+      "properties": {
+        "nome": { "type": "string" },
+        "telefone": { "type": "string" },
+        "canal": { "type": "string", "default": "whatsapp" }
+      }
+    },
+    "token": { "type": "string" },
+    "url": { "type": "string", "format": "uri" },
+    "expira_em": { "type": "string", "format": "date-time" },
+    "ttl_s": { "type": "integer", "maximum": 86400 },
+    "escopo": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "revogavel": { "type": "boolean", "default": true }
+  }
+}

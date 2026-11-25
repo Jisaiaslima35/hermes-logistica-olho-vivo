@@ -1,0 +1,14 @@
+{
+  "name": "@fleetbase/bridge-whatsapp",
+  "version": "1.0.0",
+  "description": "Hermes Fleetbase WhatsApp & Events Bridge",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.26.2",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
